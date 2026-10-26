@@ -1,0 +1,101 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  CUSTOMER
+  MECHANIC
+  ADMIN
+}
+
+enum JobStatus {
+  PENDING
+  DIAGNOSING
+  PARTS_ON_ORDER
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id                   String      @id @default(uuid())
+  email                String      @unique
+  passwordHash         String
+  firstName            String
+  lastName             String
+  phone                String?
+  role                 Role        @default(CUSTOMER)
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  vehicles     Vehicle[]
+  assignedJobs RepairJob[]
+}
+
+model Vehicle {
+  id           String      @id @default(uuid())
+  vin          String?     @unique
+  make         String
+  model        String
+  year         Int
+  licensePlate String?     @unique
+  ownerId      String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  owner        User        @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  repairJobs   RepairJob[]
+}
+
+model RepairJob {
+  id            String      @id @default(uuid())
+  vehicleId     String
+  mechanicId    String?
+  description   String
+  status        JobStatus   @default(PENDING)
+  estimatedCost Decimal     @db.Decimal(10, 2)
+  actualCost    Decimal?    @db.Decimal(10, 2)
+  notes         String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  vehicle       Vehicle     @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  mechanic      User?       @relation(fields: [mechanicId], references: [id], onDelete: SetNull)
+  partsUsed     JobPart[]
+}
+
+model Inventory {
+  id          String      @id @default(uuid())
+  partName    String
+  sku         String      @unique
+  carType     String
+  quantity    Int
+  costPrice   Decimal     @db.Decimal(10, 2)
+  retailPrice Decimal     @db.Decimal(10, 2)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  jobUsage    JobPart[]
+
+  @@unique([partName, carType])
+}
+
+model JobPart {
+  id           String    @id @default(uuid())
+  repairJobId  String
+  partId       String
+  quantityUsed Int       @default(1)
+  unitPriceAtSale Decimal @db.Decimal(10, 2)
+
+  repairJob    RepairJob @relation(fields: [repairJobId], references: [id], onDelete: Cascade)
+  part         Inventory @relation(fields: [partId], references: [id], onDelete: Restrict)
+
+  @@unique([repairJobId, partId])
+}
